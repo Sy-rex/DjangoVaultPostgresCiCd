@@ -54,7 +54,7 @@ spec:
       serviceAccountName: django-sa
       containers:
       - name: django
-        image: ghcr.io/Sy-rex/django-app:latest
+        image: ghcr.io/sy-rex/django-app:latest
         ports:
         - containerPort: 8000
         env:
