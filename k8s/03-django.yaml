@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: django-sa
+  namespace: practical-work-3
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "django-role"
+    vault.hashicorp.com/agent-inject-secret-db-password: "database/creds/django"
+    vault.hashicorp.com/agent-inject-template-db-password: |
+      {{- with secret "database/creds/django" -}}
+      export DB_PASSWORD={{ .Data.password }}
+      {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: django-role
+  namespace: practical-work-3
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: django-role-binding
+  namespace: practical-work-3
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: django-role
+subjects:
+- kind: ServiceAccount
+  name: django-sa
+  namespace: practical-work-3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django
+  namespace: practical-work-3
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: django
+  template:
+    metadata:
+      labels:
+        app: django
+    spec:
+      serviceAccountName: django-sa
+      containers:
+      - name: django
+        image: ghcr.io/Sy-rex/django-app:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: vault-database-creds
+              key: password
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: django
+  namespace: practical-work-3
+spec:
+  type: ClusterIP
+  selector:
+    app: django
+  ports:
+    - port: 80
+      targetPort: 8000

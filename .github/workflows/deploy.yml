@@ -1,0 +1,50 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: django-app
+  REGISTRY: ghcr.io
+  K8S_NAMESPACE: practical-work-3
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Django app
+        uses: docker/build-push-action@v5
+        with:
+          context: ./django-app
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Build and push Vault image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vault
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/vault:1.19.3
+
+      - name: Deploy to Kubernetes
+        uses: stefanprodan/k8s-action@v1
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          manifests: k8s/
+          namespace: ${{ env.K8S_NAMESPACE }}

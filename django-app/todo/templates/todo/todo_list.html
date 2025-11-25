@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Todo List</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .todo-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .completed { text-decoration: line-through; color: #888; }
+        .actions { display: flex; gap: 10px; }
+        form { margin: 20px 0; }
+        input[type="text"] { padding: 8px; width: 70%; }
+        button { padding: 8px 15px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button.delete { background: #dc3545; }
+        button.complete { background: #28a745; }
+    </style>
+</head>
+<body>
+    <h1>Todo List</h1>
+    
+    <form method="post" action="{% url 'add_todo' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Add</button>
+    </form>
+    
+    <div class="todos">
+        {% for todo in todos %}
+        <div class="todo-item {% if todo.completed %}completed{% endif %}">
+            <span>{{ todo.title }}</span>
+            <div class="actions">
+                <form method="post" action="{% url 'complete_todo' todo.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="complete">✓</button>
+                </form>
+                <form method="post" action="{% url 'delete_todo' todo.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="delete">✕</button>
+                </form>
+            </div>
+        </div>
+        {% empty %}
+        <p>No tasks yet!</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
