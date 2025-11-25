@@ -42,9 +42,13 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/vault:1.19.3
 
-      - name: Deploy to Kubernetes
-        uses: stefanprodan/k8s-action@v1
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
         with:
-          kubeconfig: ${{ secrets.KUBE_CONFIG }}
-          manifests: k8s/
-          namespace: ${{ env.K8S_NAMESPACE }}
+          version: 'v1.28.0'  # Версия должна соответствовать вашему кластеру
+
+      - name: Deploy to Kubernetes
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          kubectl apply -f k8s/ -n ${{ env.K8S_NAMESPACE }}
