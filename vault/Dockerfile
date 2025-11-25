@@ -12,9 +12,14 @@ RUN wget https://hashicorp-releases.yandexcloud.net/vault/${VAULT_VERSION}/vault
     rm vault_${VAULT_VERSION}_linux_amd64.zip
 
 # Создание директорий
-RUN mkdir -p /vault/config /vault/data && \
-    adduser -S -D -H -u 1000 vault && \
-    chown -R vault:vault /vault
+RUN mkdir -p /vault/config /vault/data
+
+# Создание пользователя vault
+RUN addgroup -S vault && \
+    adduser -S -D -H -u 1000 -s /sbin/nologin -G vault vault
+
+# Изменение владельца
+RUN chown -R vault:vault /vault
 
 # Копируем конфигурацию
 COPY vault-config.hcl /vault/config/
