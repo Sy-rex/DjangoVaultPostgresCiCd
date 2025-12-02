@@ -121,11 +121,12 @@ jobs:
                 
               echo "Creating Vault policy..."
               echo 'path "secret/data/django/*" {
-  capabilities = ["read"]
-}
-path "database/creds/django" {
-  capabilities = ["read"]
-}' > vault-policy.hcl
+                capabilities = ["read"]
+              }
+              path "database/creds/django" {
+                capabilities = ["read"]
+              }' > vault-policy.hcl
+
               kubectl cp vault-policy.hcl $VAULT_POD:/tmp/vault-policy.hcl -n ${{ env.K8S_NAMESPACE }}
               kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault policy write django-policy /tmp/vault-policy.hcl
               rm vault-policy.hcl
