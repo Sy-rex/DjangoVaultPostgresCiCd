@@ -119,14 +119,14 @@ jobs:
                 ttl=24h
                 
               echo "Creating Vault policy..."
-              cat <<EOF | kubectl exec -n ${{ env.K8S_NAMESPACE }} -i $VAULT_POD -- vault policy write django-policy -
+              cat << 'EOF_POLICY' | kubectl exec -n ${{ env.K8S_NAMESPACE }} -i $VAULT_POD -- vault policy write django-policy -
 path "secret/data/django/*" {
   capabilities = ["read"]
 }
 path "database/creds/django" {
   capabilities = ["read"]
 }
-EOF
+EOF_POLICY
 
               echo "Setting up database secrets..."
               POSTGRES_PASSWORD="securepassword123"
