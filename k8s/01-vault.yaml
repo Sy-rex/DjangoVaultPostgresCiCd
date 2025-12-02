@@ -55,6 +55,8 @@ metadata:
   name: vault
   namespace: practical-work-3
 spec:
+  imagePullSecrets:
+    - name: ghcr-registry-secret
   replicas: 1
   selector:
     matchLabels:

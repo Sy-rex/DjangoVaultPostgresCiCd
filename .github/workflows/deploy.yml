@@ -54,6 +54,15 @@ jobs:
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
           kubectl version --client
+      
+      - name: Create image pull secret
+        run: |
+          kubectl create secret docker-registry ghcr-registry-secret \
+            --namespace ${{ env.K8S_NAMESPACE }} \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --dry-run=client -o yaml | kubectl apply -f
 
       - name: Deploy to Kubernetes
         run: |
