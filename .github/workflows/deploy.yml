@@ -1,45 +1,55 @@
-name: Deploy to Kubernetes
+name: Deploy Django App to Kubernetes
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 env:
-  IMAGE_NAME: django-app
   REGISTRY: k8s-master-01:5000
+  IMAGE_NAME: django-app
+  VAULT_IMAGE: vault
   K8S_NAMESPACE: practical-work-3
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-
+  build-and-push:
+    runs-on: self-hosted
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set lowercase repository owner
-        id: lowercase
+      - name: Configure Docker for insecure registry
         run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "owner=$OWNER" >> $GITHUB_OUTPUT
-
-      - name: Log in to local Docker Registry
-        run: |
-          echo "No login required for insecure registry"
+          echo "Configuring Docker for insecure registry"
+          sudo systemctl restart docker || true
+          sleep 5
 
       - name: Build and push Django app
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.owner }}/${{ env.IMAGE_NAME }}:latest ./django-app
-          docker push ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.owner }}/${{ env.IMAGE_NAME }}:latest
+          echo "Building Django app image"
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ./django-app
+          echo "Pushing Django app image to local registry"
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Build and push Vault image
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.owner }}/vault:1.19.3 ./vault
-          docker push ${{ env.REGISTRY }}/${{ steps.lowercase.outputs.owner }}/vault:1.19.3
+          echo "Building Vault image"
+          docker build -t ${{ env.REGISTRY }}/${{ env.VAULT_IMAGE }}:1.19.3 ./vault
+          echo "Pushing Vault image to local registry"
+          docker push ${{ env.REGISTRY }}/${{ env.VAULT_IMAGE }}:1.19.3
+
+      - name: Verify images in registry
+        run: |
+          echo "Verifying images in local registry"
+          curl -s http://k8s-master-01:5000/v2/_catalog
+          curl -s http://k8s-master-01:5000/v2/${{ env.IMAGE_NAME }}/tags/list
+          curl -s http://k8s-master-01:5000/v2/${{ env.VAULT_IMAGE }}/tags/list
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Install kubectl
         run: |
@@ -50,6 +60,95 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          echo "Creating namespace if not exists"
+          kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "Applying Kubernetes manifests"
           kubectl apply -f k8s/ -n ${{ env.K8S_NAMESPACE }}
+          
+          echo "Waiting for deployments to stabilize"
+          sleep 15
+          
+          echo "Checking deployment status"
+          kubectl rollout status deployment/django -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          kubectl rollout status deployment/vault -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          
+          echo "Current pods status:"
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+          
+          echo "Service status:"
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+          
+          echo "Ingress status:"
+          kubectl get ingress -n ${{ env.K8S_NAMESPACE }}
+
+      - name: Initialize Vault if needed
+        if: ${{ always() }}
+        run: |
+          echo "Checking if Vault needs initialization"
+          VAULT_POD=$(kubectl get pods -n ${{ env.K8S_NAMESPACE }} -l app=vault -o jsonpath='{.items[0].metadata.name}' || echo "")
+          
+          if [ -n "$VAULT_POD" ]; then
+            echo "Vault pod found: $VAULT_POD"
+            STATUS=$(kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault status 2>&1 || echo "not initialized")
+            
+            if echo "$STATUS" | grep -q "not initialized"; then
+              echo "Initializing Vault..."
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault operator init -key-shares=1 -key-threshold=1 > vault-init.txt
+              UNSEAL_KEY=$(grep 'Unseal Key 1' vault-init.txt | awk '{print $4}')
+              ROOT_TOKEN=$(grep 'Initial Root Token' vault-init.txt | awk '{print $4}')
+              
+              echo "Unsealing Vault..."
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault operator unseal $UNSEAL_KEY
+              
+              echo "Logging in to Vault..."
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault login $ROOT_TOKEN
+              
+              echo "Setting up Kubernetes auth..."
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault auth enable kubernetes
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write auth/kubernetes/config \
+                token_reviewer_jwt="$(kubectl get secret $(kubectl get serviceaccount default -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.secrets[0].name}') -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.data.token}' | base64 --decode)" \
+                kubernetes_host="https://$KUBERNETES_SERVICE_HOST:443" \
+                kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                
+              echo "Creating Vault role for Django..."
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write auth/kubernetes/role/django-role \
+                bound_service_account_names="django-sa" \
+                bound_service_account_namespaces="${{ env.K8S_NAMESPACE }}" \
+                policies="django-policy" \
+                ttl=24h
+                
+              echo "Creating Vault policy..."
+              cat <<EOF | kubectl exec -n ${{ env.K8S_NAMESPACE }} -i $VAULT_POD -- vault policy write django-policy -
+path "secret/data/django/*" {
+  capabilities = ["read"]
+}
+path "database/creds/django" {
+  capabilities = ["read"]
+}
+EOF
+
+              echo "Setting up database secrets..."
+              POSTGRES_PASSWORD="securepassword123"
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault secrets enable database
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write database/config/postgres \
+                plugin_name=postgresql-database-plugin \
+                connection_url="postgresql://postgres:{{username}}@postgres:5432/mydb?sslmode=disable" \
+                allowed_roles="django" \
+                username="postgres" \
+                password="$POSTGRES_PASSWORD"
+                
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write database/roles/django \
+                db_name=postgres \
+                creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; \
+                  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
+                default_ttl="1h" \
+                max_ttl="24h"
+                
+              echo "Vault initialization completed successfully!"
+            else
+              echo "Vault is already initialized"
+            fi
+          else
+            echo "Vault pod not found, skipping initialization"
+          fi
