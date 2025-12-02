@@ -127,7 +127,7 @@ jobs:
               path "database/creds/django" {
                 capabilities = ["read"]
               }
-              EOF_POLICY
+              'EOF_POLICY'
 
               echo "Setting up database secrets..."
               POSTGRES_PASSWORD="securepassword123"
