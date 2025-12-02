@@ -91,29 +91,52 @@ jobs:
           
           if [ -n "$VAULT_POD" ]; then
             echo "Vault pod found: $VAULT_POD"
-            STATUS=$(kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault status 2>&1 || echo "not initialized")
+            
+            # Добавляем ожидание, пока под не станет готовым
+            echo "Waiting for Vault pod to be ready..."
+            kubectl wait --for=condition=ready pod/$VAULT_POD -n ${{ env.K8S_NAMESPACE }} --timeout=120s || true
+            
+            # Проверяем состояние пода
+            POD_STATUS=$(kubectl get pod $VAULT_POD -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.phase}')
+            echo "Vault pod status: $POD_STATUS"
+            
+            # Проверяем, какие контейнеры доступны
+            CONTAINERS=$(kubectl get pod $VAULT_POD -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.containers[*].name}')
+            echo "Containers in Vault pod: $CONTAINERS"
+            
+            # Определяем имя контейнера Vault
+            VAULT_CONTAINER="vault"
+            if ! echo "$CONTAINERS" | grep -q "$VAULT_CONTAINER"; then
+              # Используем первый контейнер, если "vault" не найден
+              VAULT_CONTAINER=$(echo "$CONTAINERS" | awk '{print $1}')
+              echo "Using container: $VAULT_CONTAINER instead of 'vault'"
+            fi
+            
+            # Проверяем статус Vault с небольшой задержкой
+            sleep 10
+            STATUS=$(kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault status 2>&1 || echo "not initialized")
             
             if echo "$STATUS" | grep -q "not initialized"; then
               echo "Initializing Vault..."
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault operator init -key-shares=1 -key-threshold=1 > vault-init.txt
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault operator init -key-shares=1 -key-threshold=1 > vault-init.txt
               UNSEAL_KEY=$(grep 'Unseal Key 1' vault-init.txt | awk '{print $4}')
               ROOT_TOKEN=$(grep 'Initial Root Token' vault-init.txt | awk '{print $4}')
               
               echo "Unsealing Vault..."
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault operator unseal $UNSEAL_KEY
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault operator unseal $UNSEAL_KEY
               
               echo "Logging in to Vault..."
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault login $ROOT_TOKEN
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault login $ROOT_TOKEN
               
               echo "Setting up Kubernetes auth..."
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault auth enable kubernetes
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write auth/kubernetes/config \
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault auth enable kubernetes
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault write auth/kubernetes/config \
                 token_reviewer_jwt="$(kubectl get secret $(kubectl get serviceaccount default -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.secrets[0].name}') -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.data.token}' | base64 --decode)" \
                 kubernetes_host="https://$KUBERNETES_SERVICE_HOST:443" \
                 kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
                 
               echo "Creating Vault role for Django..."
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write auth/kubernetes/role/django-role \
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault write auth/kubernetes/role/django-role \
                 bound_service_account_names="django-sa" \
                 bound_service_account_namespaces="${{ env.K8S_NAMESPACE }}" \
                 policies="django-policy" \
@@ -126,22 +149,22 @@ jobs:
               path "database/creds/django" {
                 capabilities = ["read"]
               }' > vault-policy.hcl
-
+              
               kubectl cp vault-policy.hcl $VAULT_POD:/tmp/vault-policy.hcl -n ${{ env.K8S_NAMESPACE }}
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault policy write django-policy /tmp/vault-policy.hcl
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault policy write django-policy /tmp/vault-policy.hcl
               rm vault-policy.hcl
 
               echo "Setting up database secrets..."
               POSTGRES_PASSWORD="securepassword123"
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault secrets enable database
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write database/config/postgres \
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault secrets enable database
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault write database/config/postgres \
                 plugin_name=postgresql-database-plugin \
                 connection_url="postgresql://postgres:{{username}}@postgres:5432/mydb?sslmode=disable" \
                 allowed_roles="django" \
                 username="postgres" \
                 password="$POSTGRES_PASSWORD"
                 
-              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -- vault write database/roles/django \
+              kubectl exec -n ${{ env.K8S_NAMESPACE }} $VAULT_POD -c $VAULT_CONTAINER -- vault write database/roles/django \
                 db_name=postgres \
                 creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; \
                   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
@@ -151,7 +174,10 @@ jobs:
               echo "Vault initialization completed successfully!"
             else
               echo "Vault is already initialized"
+              echo "Vault status output:"
+              echo "$STATUS"
             fi
           else
             echo "Vault pod not found, skipping initialization"
           fi
+
