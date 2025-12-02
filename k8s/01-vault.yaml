@@ -67,7 +67,7 @@ spec:
       serviceAccountName: vault-sa
       containers:
       - name: vault
-        image: k8s-master-01:5000/vault:1.19.3
+        image: 192.168.31.229:5000/vault:1.19.3
         env:
         - name: VAULT_ADDR
           value: "http://0.0.0.0:8200"

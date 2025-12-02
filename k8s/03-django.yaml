@@ -54,7 +54,7 @@ spec:
       serviceAccountName: django-sa
       containers:
       - name: django
-        image: k8s-master-01:5000/django-app:latest
+        image: 192.168.31.229:5000/django-app:latest
         ports:
         - containerPort: 8000
         env:
