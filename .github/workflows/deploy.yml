@@ -21,7 +21,6 @@ jobs:
       - name: Configure Docker for insecure registry
         run: |
           echo "Configuring Docker for insecure registry"
-          # Удаляем sudo из команд
           systemctl restart docker || true
           sleep 5
 
@@ -54,6 +53,7 @@ jobs:
 
       - name: Install kubectl
         run: |
+          # Установка kubectl из community-owned репозиториев
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
@@ -121,13 +121,13 @@ jobs:
                 
               echo "Creating Vault policy..."
               cat << 'EOF_POLICY' | kubectl exec -n ${{ env.K8S_NAMESPACE }} -i $VAULT_POD -- vault policy write django-policy -
-              path "secret/data/django/*" {
-                capabilities = ["read"]
-              }
-              path "database/creds/django" {
-                capabilities = ["read"]
-              }
-              EOF_POLICY
+path "secret/data/django/*" {
+  capabilities = ["read"]
+}
+path "database/creds/django" {
+  capabilities = ["read"]
+}
+EOF_POLICY
 
               echo "Setting up database secrets..."
               POSTGRES_PASSWORD="securepassword123"
