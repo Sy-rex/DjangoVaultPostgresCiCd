@@ -41,7 +41,7 @@ jobs:
           minikube image load vault-custom:latest
 
       - name: Deploy and configure Vault
-        shell: pwsh
+        shell: powershell
         run: |
           # Создаем namespace vault
           kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
