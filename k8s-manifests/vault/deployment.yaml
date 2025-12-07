@@ -27,7 +27,12 @@ spec:
           value: "root"
         - name: VAULT_DEV_LISTEN_ADDRESS
           value: "0.0.0.0:8200"
-        # Используем dev режим напрямую
+        - name: HOME
+          value: "/tmp"
+        # Используем dev режим напрямую, запускаем от root для dev режима
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
         command: ["vault", "server", "-dev", "-dev-listen-address=0.0.0.0:8200", "-dev-root-token-id=root"]
         livenessProbe:
           httpGet:
