@@ -151,7 +151,39 @@ jobs:
               exit 1
           }
 
+      - name: Create Django secrets from Vault
+        shell: powershell
+        run: |
+          # Получаем секреты из Vault и создаем Kubernetes Secret
+          Write-Host "Получаем секреты из Vault..."
+          
+          # Получаем имя pod Vault
+          $VAULT_POD = kubectl get pods -n vault -l app=vault -o jsonpath='{.items[0].metadata.name}'
+          Write-Host "Используем Vault pod: $VAULT_POD"
+          
+          # Получаем секреты из Vault в JSON формате
+          $vaultJson = kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv get -format=json secret/django-app/database" 2>&1 | Out-String
+          
+          # Парсим JSON в PowerShell
+          $vaultData = $vaultJson | ConvertFrom-Json
+          $dbUser = $vaultData.data.data.db_user
+          $dbPassword = $vaultData.data.data.db_password
+          $secretKey = $vaultData.data.data.secret_key
+          
+          Write-Host "Создаем Kubernetes Secret из секретов Vault..."
+          
+          # Создаем secret через kubectl create с dry-run и apply
+          kubectl create secret generic django-secrets `
+            --namespace django-app `
+            --from-literal=db_user=$dbUser `
+            --from-literal=db_password=$dbPassword `
+            --from-literal=secret_key=$secretKey `
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          Write-Host "Secret django-secrets создан успешно!"
+
       - name: Deploy to Minikube
+        shell: powershell
         run: |
           # Создаем namespace если нет
           kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
@@ -169,3 +201,17 @@ jobs:
           
           # Форсируем обновление образа (rollout restart)
           kubectl rollout restart deployment/django-deployment -n ${{ env.K8S_NAMESPACE }}
+          
+          # Ждем готовности pods Django
+          Write-Host "Ожидаем готовности Django pods..."
+          kubectl wait --for=condition=ready pod -l app=django-app -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+          
+          # Получаем имя pod Django
+          $DJANGO_POD = kubectl get pods -n ${{ env.K8S_NAMESPACE }} -l app=django-app -o jsonpath='{.items[0].metadata.name}'
+          Write-Host "Используем pod: $DJANGO_POD"
+          
+          # Запускаем миграции Django
+          Write-Host "Запускаем миграции Django..."
+          kubectl exec $DJANGO_POD -n ${{ env.K8S_NAMESPACE }} -- python manage.py migrate
+          
+          Write-Host "Миграции выполнены успешно!"
