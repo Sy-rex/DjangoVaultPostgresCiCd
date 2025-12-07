@@ -188,13 +188,51 @@ jobs:
           # Создаем namespace если нет
           kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
-          # Секреты (См. пояснение ниже - т.к. это CI, секрет должен уже быть или создаваться тут)
-          # В лабе предполагается ручное создание, поэтому пропустим создание секрета в CI
-          
-          # Применяем манифесты
+          # Применяем манифесты (без PostgreSQL, так как он зависит от secret)
           kubectl apply -f k8s-manifests/namespace.yaml
           kubectl apply -f k8s-manifests/configmap.yaml
+          
+          # Деплоим PostgreSQL (secret уже создан на предыдущем шаге)
           kubectl apply -f k8s-manifests/postgres/
+          
+          # Ждем готовности PostgreSQL
+          Write-Host "Ожидаем готовности PostgreSQL..."
+          kubectl wait --for=condition=ready pod -l app=postgres -n ${{ env.K8S_NAMESPACE }} --timeout=180s
+          
+          # Проверяем, что PostgreSQL действительно принимает подключения
+          Write-Host "Проверяем доступность PostgreSQL..."
+          $postgresPod = kubectl get pods -n ${{ env.K8S_NAMESPACE }} -l app=postgres -o jsonpath='{.items[0].metadata.name}'
+          $postgresReady = $false
+          $postgresAttempts = 0
+          $maxPostgresAttempts = 15
+          
+          while ($postgresAttempts -lt $maxPostgresAttempts -and -not $postgresReady) {
+              $postgresAttempts++
+              Write-Host "Проверка доступности PostgreSQL: $postgresAttempts/$maxPostgresAttempts"
+              
+              # Проверяем через psql или pg_isready
+              $pgCheck = kubectl exec $postgresPod -n ${{ env.K8S_NAMESPACE }} -- sh -c "pg_isready -U django_user -d django_prod" 2>&1
+              if ($LASTEXITCODE -eq 0) {
+                  $postgresReady = $true
+                  Write-Host "PostgreSQL готов к подключениям!"
+                  break
+              } else {
+                  Write-Host "PostgreSQL еще не готов, ждем..."
+                  Start-Sleep -Seconds 5
+              }
+          }
+          
+          if (-not $postgresReady) {
+              Write-Host "PostgreSQL не готов после $maxPostgresAttempts попыток, но продолжаем..."
+              Write-Host "Логи PostgreSQL:"
+              kubectl logs $postgresPod -n ${{ env.K8S_NAMESPACE }} --tail=30
+          }
+          
+          # Даем дополнительное время PostgreSQL на полную инициализацию
+          Write-Host "Ждем полной инициализации PostgreSQL..."
+          Start-Sleep -Seconds 10
+          
+          # Деплоим Django приложение
           kubectl apply -f k8s-manifests/deployment.yaml
           kubectl apply -f k8s-manifests/service.yaml
           kubectl apply -f k8s-manifests/ingress.yaml
@@ -206,12 +244,42 @@ jobs:
           Write-Host "Ожидаем готовности Django pods..."
           kubectl wait --for=condition=ready pod -l app=django-app -n ${{ env.K8S_NAMESPACE }} --timeout=120s
           
+          # Даем время на полную инициализацию Django pods
+          Start-Sleep -Seconds 5
+          
           # Получаем имя pod Django
           $DJANGO_POD = kubectl get pods -n ${{ env.K8S_NAMESPACE }} -l app=django-app -o jsonpath='{.items[0].metadata.name}'
           Write-Host "Используем pod: $DJANGO_POD"
           
-          # Запускаем миграции Django
+          # Запускаем миграции Django с повторными попытками
           Write-Host "Запускаем миграции Django..."
-          kubectl exec $DJANGO_POD -n ${{ env.K8S_NAMESPACE }} -- python manage.py migrate
+          $migrationAttempts = 0
+          $maxMigrationAttempts = 5
+          $migrationSuccess = $false
           
-          Write-Host "Миграции выполнены успешно!"
+          while ($migrationAttempts -lt $maxMigrationAttempts -and -not $migrationSuccess) {
+              $migrationAttempts++
+              Write-Host "Попытка запуска миграций: $migrationAttempts/$maxMigrationAttempts"
+              
+              $migrationOutput = kubectl exec $DJANGO_POD -n ${{ env.K8S_NAMESPACE }} -- python manage.py migrate 2>&1 | Out-String
+              Write-Host $migrationOutput
+              
+              if ($LASTEXITCODE -eq 0) {
+                  $migrationSuccess = $true
+                  Write-Host "Миграции выполнены успешно!"
+                  break
+              } else {
+                  Write-Host "Миграции завершились с ошибкой, код: $LASTEXITCODE"
+                  if ($migrationAttempts -lt $maxMigrationAttempts) {
+                      Write-Host "Ждем 10 секунд перед повторной попыткой..."
+                      Start-Sleep -Seconds 10
+                  }
+              }
+          }
+          
+          if (-not $migrationSuccess) {
+              Write-Host "Не удалось выполнить миграции после $maxMigrationAttempts попыток"
+              Write-Host "Проверьте логи pod: $DJANGO_POD"
+              kubectl logs $DJANGO_POD -n ${{ env.K8S_NAMESPACE }} --tail=50
+              exit 1
+          }
