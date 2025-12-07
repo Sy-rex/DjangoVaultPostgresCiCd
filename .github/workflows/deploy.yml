@@ -98,11 +98,7 @@ jobs:
           
           # Создаем политику доступа
           echo "📋 Настраиваем политику доступа..."
-          cat <<'POLICY_EOF' | kubectl exec -i $VAULT_POD -n vault -- sh -c 'VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -' || echo "Политика уже существует"
-          path "secret/data/django-app/*" {
-          capabilities = ["read"]
-          }
-          POLICY_EOF
+          kubectl exec $VAULT_POD -n vault -- sh -c 'echo "path \"secret/data/django-app/*\" { capabilities = [\"read\"] }" | VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -' || echo "Политика уже существует"
           
           # Проверяем секреты
           echo "🔍 Проверяем записанные секреты..."
