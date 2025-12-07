@@ -14,12 +14,13 @@ RUN wget https://hashicorp-releases.yandexcloud.net/vault/${VAULT_VERSION}/vault
 # Создание директорий
 RUN mkdir -p /vault/config /vault/data
 
-# Создание пользователя vault
+# Создание пользователя vault с домашней директорией
 RUN addgroup -S vault && \
-    adduser -S -D -H -u 1000 -s /sbin/nologin -G vault vault
+    adduser -S -D -H -u 1000 -s /sbin/nologin -G vault vault -h /home/vault
 
-# Изменение владельца
-RUN chown -R vault:vault /vault
+# Создание домашней директории и изменение владельца
+RUN mkdir -p /home/vault && \
+    chown -R vault:vault /vault /home/vault
 
 # Копируем конфигурацию
 COPY vault-config.hcl /vault/config/

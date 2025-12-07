@@ -101,26 +101,43 @@ jobs:
           $containerStatus = kubectl get pod $VAULT_POD -n vault -o jsonpath='{.status.containerStatuses[0].ready}' 2>&1
           Write-Host "Статус контейнера: $containerStatus"
           
-          # Настраиваем KV движок версии 2 (если еще не включен)
-          Write-Host "📝 Настраиваем KV движок версии 2..."
-          kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault secrets enable -path=secret kv-v2" 2>&1
-          if ($LASTEXITCODE -ne 0) { Write-Host "KV движок уже включен или ошибка (код: $LASTEXITCODE)" }
+          # Ждем, пока контейнер станет ready
+          if ($containerStatus -ne "true") {
+              Write-Host "⚠️ Контейнер не готов, ждем еще..."
+              $waitAttempts = 0
+              while ($waitAttempts -lt 20 -and $containerStatus -ne "true") {
+                  Start-Sleep -Seconds 3
+                  $containerStatus = kubectl get pod $VAULT_POD -n vault -o jsonpath='{.status.containerStatuses[0].ready}' 2>&1
+                  $waitAttempts++
+                  Write-Host "Попытка $waitAttempts/20, статус: $containerStatus"
+              }
+          }
           
-          # Записываем секреты для Django приложения
-          Write-Host "💾 Записываем секреты для Django приложения..."
-          kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv put secret/django-app/database db_name=django_prod db_user=django_user db_password=SuperSecret123! secret_key=very-secret-key-prod" 2>&1
-          
-          # Создаем политику доступа
-          Write-Host "📋 Настраиваем политику доступа..."
-          $policy = 'path "secret/data/django-app/*" { capabilities = ["read"] }'
-          echo $policy | kubectl exec -i $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -" 2>&1
-          if ($LASTEXITCODE -ne 0) { Write-Host "Политика уже существует или ошибка (код: $LASTEXITCODE)" }
-          
-          # Проверяем секреты
-          Write-Host "🔍 Проверяем записанные секреты..."
-          kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv get secret/django-app/database" 2>&1
-          
-          Write-Host "✅ Vault успешно установлен и настроен!"
+          if ($containerStatus -eq "true") {
+              # Настраиваем KV движок версии 2 (если еще не включен)
+              Write-Host "📝 Настраиваем KV движок версии 2..."
+              kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault secrets enable -path=secret kv-v2" 2>&1
+              if ($LASTEXITCODE -ne 0) { Write-Host "KV движок уже включен или ошибка (код: $LASTEXITCODE)" }
+              
+              # Записываем секреты для Django приложения
+              Write-Host "💾 Записываем секреты для Django приложения..."
+              kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv put secret/django-app/database db_name=django_prod db_user=django_user db_password=SuperSecret123! secret_key=very-secret-key-prod" 2>&1
+              
+              # Создаем политику доступа
+              Write-Host "📋 Настраиваем политику доступа..."
+              $policy = 'path "secret/data/django-app/*" { capabilities = ["read"] }'
+              echo $policy | kubectl exec -i $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -" 2>&1
+              if ($LASTEXITCODE -ne 0) { Write-Host "Политика уже существует или ошибка (код: $LASTEXITCODE)" }
+              
+              # Проверяем секреты
+              Write-Host "🔍 Проверяем записанные секреты..."
+              kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv get secret/django-app/database" 2>&1
+              
+              Write-Host "✅ Vault успешно установлен и настроен!"
+          } else {
+              Write-Host "❌ Контейнер Vault не готов, пропускаем настройку. Проверьте логи pod."
+              exit 1
+          }
 
       - name: Deploy to Minikube
         run: |
