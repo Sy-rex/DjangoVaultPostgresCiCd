@@ -1,8 +1,7 @@
 ui = true
 
-storage "kubernetes" {
-  secret_suffix = "vault-keys"
-}
+# Dev режим - хранит данные в памяти
+# Для production нужно использовать storage "file" или другой бэкенд
 
 listener "tcp" {
   address     = "0.0.0.0:8200"

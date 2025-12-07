@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список задач</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .stat-card h3 {
+            color: #667eea;
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .stat-card p {
+            color: #666;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tasks-list {
+            display: grid;
+            gap: 20px;
+        }
+
+        .task-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 5px solid #667eea;
+            position: relative;
+        }
+
+        .task-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .task-card.pending {
+            border-left-color: #fbbf24;
+        }
+
+        .task-card.in_progress {
+            border-left-color: #3b82f6;
+        }
+
+        .task-card.completed {
+            border-left-color: #10b981;
+            opacity: 0.8;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .task-title {
+            font-size: 1.5em;
+            color: #333;
+            font-weight: 700;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .task-status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .task-status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .task-status.in_progress {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .task-status.completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .task-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 1em;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9em;
+            color: #999;
+            flex-wrap: wrap;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .task-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 500;
+        }
+
+        .no-tasks {
+            text-align: center;
+            padding: 80px 20px;
+            background: white;
+            border-radius: 15px;
+            color: #999;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .no-tasks h3 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        .no-tasks p {
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .task-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5em;
+            }
+            
+            .task-header {
+                flex-direction: column;
+            }
+            
+            .task-title {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Список задач</h1>
+            <p>Управление вашими задачами</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3 id="total-tasks">{{ total_tasks }}</h3>
+                <p>Всего задач</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="pending-tasks">{{ pending_count }}</h3>
+                <p>Ожидают</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="in-progress-tasks">{{ in_progress_count }}</h3>
+                <p>В работе</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="completed-tasks">{{ completed_count }}</h3>
+                <p>Выполнено</p>
+            </div>
+        </div>
+
+        <div class="tasks-list" id="tasksList">
+            {% if tasks %}
+                {% for task in tasks %}
+                <div class="task-card {{ task.status }}">
+                    <div class="task-badge">#{{ task.id }}</div>
+                    <div class="task-header">
+                        <div class="task-title">{{ task.title }}</div>
+                        <div class="task-status {{ task.status }}">
+                            {% if task.status == 'pending' %}⏳ Ожидает
+                            {% elif task.status == 'in_progress' %}🔄 В работе
+                            {% elif task.status == 'completed' %}✅ Выполнено
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="task-description">{{ task.description|default:"Описание отсутствует" }}</div>
+                    <div class="task-meta">
+                        <span>ID: {{ task.id }}</span>
+                        <span>Добавлена: {{ task.created_at|date:"d.m.Y H:i" }}</span>
+                        <span>Обновлена: {{ task.updated_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-tasks">
+                    <h3>Задач пока нет!</h3>
+                    <p>Добавьте задачи через API для их отображения здесь.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
