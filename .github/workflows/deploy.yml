@@ -21,10 +21,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Kubernetes context
+        shell: bash
         run: |
           kubectl config use-context minikube
 
       - name: Build Django Docker image in Minikube
+        shell: bash
         run: |
           # Настраиваем Docker для использования minikube docker daemon
           eval $(minikube docker-env)
@@ -36,6 +38,7 @@ jobs:
           eval $(minikube docker-env -u) 
 
       - name: Build Vault Docker image in Minikube
+        shell: bash
         run: |
           # Настраиваем Docker для использования minikube docker daemon
           eval $(minikube docker-env)
@@ -47,6 +50,7 @@ jobs:
           eval $(minikube docker-env -u)
 
       - name: Deploy and configure Vault
+        shell: bash
         run: |
           # Создаем namespace vault
           kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f -
@@ -93,6 +97,7 @@ jobs:
           echo "✅ Vault успешно установлен и настроен!"
 
       - name: Deploy to Minikube
+        shell: bash
         run: |
           # Создаем namespace если нет
           kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
