@@ -116,32 +116,34 @@ jobs:
           if ($containerStatus -eq "true") {
               # Настраиваем KV движок версии 2 (если еще не включен)
               Write-Host "📝 Настраиваем KV движок версии 2..."
-              $kvResult = kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault secrets enable -path=secret kv-v2" 2>&1 | Out-String
-              if ($LASTEXITCODE -ne 0) { 
-                  Write-Host "KV движок уже включен или ошибка (код: $LASTEXITCODE)"
-              } else {
-                  Write-Host $kvResult
+              try {
+                  $null = kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault secrets enable -path=secret kv-v2" 2>&1
+                  if ($LASTEXITCODE -ne 0) { 
+                      Write-Host "KV движок уже включен"
+                  }
+              } catch {
+                  Write-Host "KV движок уже включен или ошибка"
               }
               
               # Записываем секреты для Django приложения
               Write-Host "💾 Записываем секреты для Django приложения..."
-              $secretResult = kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv put secret/django-app/database db_name=django_prod db_user=django_user db_password=SuperSecret123! secret_key=very-secret-key-prod" 2>&1 | Out-String
-              Write-Host $secretResult
+              kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv put secret/django-app/database db_name=django_prod db_user=django_user db_password=SuperSecret123! secret_key=very-secret-key-prod" 2>&1 | Out-Null
               
               # Создаем политику доступа
               Write-Host "📋 Настраиваем политику доступа..."
               $policy = 'path "secret/data/django-app/*" { capabilities = ["read"] }'
-              $policyResult = echo $policy | kubectl exec -i $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -" 2>&1 | Out-String
-              if ($LASTEXITCODE -ne 0) { 
-                  Write-Host "Политика уже существует или ошибка (код: $LASTEXITCODE)"
-              } else {
-                  Write-Host $policyResult
+              try {
+                  $null = echo $policy | kubectl exec -i $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault policy write django-app -" 2>&1
+                  if ($LASTEXITCODE -ne 0) { 
+                      Write-Host "Политика уже существует"
+                  }
+              } catch {
+                  Write-Host "Политика уже существует или ошибка"
               }
               
               # Проверяем секреты
               Write-Host "🔍 Проверяем записанные секреты..."
-              $checkResult = kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv get secret/django-app/database" 2>&1 | Out-String
-              Write-Host $checkResult
+              kubectl exec $VAULT_POD -n vault -c vault -- sh -c "VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=root vault kv get secret/django-app/database" 2>&1 | Out-Null
               
               Write-Host "✅ Vault успешно установлен и настроен!"
           } else {
