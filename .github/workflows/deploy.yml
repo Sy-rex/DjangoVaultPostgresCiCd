@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  # Приводим имя репозитория к нижнему регистру автоматически нельзя в env, сделаем в шагах
   K8S_NAMESPACE: django-app
 
 jobs:
@@ -17,38 +15,25 @@ jobs:
     
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Lowercase repo name
-        run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          # Важно для совместимости, если раннер на маке, а кластер где-то еще, но у нас все локально
-          platforms: linux/arm64 
-
       - name: Setup Kubernetes context
         run: |
           kubectl config use-context minikube
+
+      - name: Build Django Docker image in Minikube
+        run: |
+          # Настраиваем Docker для использования minikube docker daemon
+          eval $(minikube docker-env)
+          
+          # Собираем образ Django из Dockerfile в minikube docker daemon
+          docker build -t django-kubernetes-app:latest .
+          
+          # Сбрасываем docker env
+          eval $(minikube docker-env -u) 
 
       - name: Build Vault Docker image in Minikube
         run: |
