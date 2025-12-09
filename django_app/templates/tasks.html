@@ -232,6 +232,176 @@
             font-size: 0.85em;
         }
 
+        .add-task-form {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2.5em;
@@ -243,6 +413,14 @@
             
             .task-title {
                 font-size: 1.3em;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
             }
         }
     </style>
@@ -273,35 +451,243 @@
             </div>
         </div>
 
+        <div class="add-task-form">
+            <h2 style="margin-bottom: 20px; color: #333;">➕ Добавить новую задачу</h2>
+            <div id="alert-container"></div>
+            <form id="addTaskForm">
+                <div class="form-group">
+                    <label for="task-title">Название задачи *</label>
+                    <input type="text" id="task-title" name="title" required placeholder="Введите название задачи">
+                </div>
+                <div class="form-group">
+                    <label for="task-description">Описание</label>
+                    <textarea id="task-description" name="description" placeholder="Введите описание задачи"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="task-status">Статус</label>
+                    <select id="task-status" name="status">
+                        <option value="pending">⏳ Ожидает</option>
+                        <option value="in_progress">🔄 В работе</option>
+                        <option value="completed">✅ Выполнено</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Добавить задачу</button>
+                    <button type="reset" class="btn btn-secondary">Очистить</button>
+                </div>
+            </form>
+        </div>
+
         <div class="tasks-list" id="tasksList">
             {% if tasks %}
                 {% for task in tasks %}
-                <div class="task-card {{ task.status }}">
+                <div class="task-card {{ task.status }}" 
+                     data-task-id="{{ task.id }}"
+                     data-task-title="{{ task.title|escapejs }}"
+                     data-task-description="{{ task.description|default:""|escapejs }}"
+                     data-task-status="{{ task.status }}">
                     <div class="task-badge">#{{ task.id }}</div>
                     <div class="task-header">
-                        <div class="task-title">{{ task.title }}</div>
-                        <div class="task-status {{ task.status }}">
+                        <div class="task-title" id="title-{{ task.id }}">{{ task.title }}</div>
+                        <div class="task-status {{ task.status }}" id="status-{{ task.id }}">
                             {% if task.status == 'pending' %}⏳ Ожидает
                             {% elif task.status == 'in_progress' %}🔄 В работе
                             {% elif task.status == 'completed' %}✅ Выполнено
                             {% endif %}
                         </div>
                     </div>
-                    <div class="task-description">{{ task.description|default:"Описание отсутствует" }}</div>
+                    <div class="task-description" id="description-{{ task.id }}">{{ task.description|default:"Описание отсутствует" }}</div>
                     <div class="task-meta">
                         <span>ID: {{ task.id }}</span>
                         <span>Добавлена: {{ task.created_at|date:"d.m.Y H:i" }}</span>
                         <span>Обновлена: {{ task.updated_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                    <div class="task-actions">
+                        <button class="btn btn-success btn-small" onclick="editTaskFromCard(this)">✏️ Редактировать</button>
+                        <button class="btn btn-danger btn-small" onclick="deleteTask({{ task.id }})">🗑️ Удалить</button>
                     </div>
                 </div>
                 {% endfor %}
             {% else %}
                 <div class="no-tasks">
                     <h3>Задач пока нет!</h3>
-                    <p>Добавьте задачи через API для их отображения здесь.</p>
+                    <p>Добавьте первую задачу используя форму выше.</p>
                 </div>
             {% endif %}
         </div>
     </div>
+
+    <!-- Модальное окно для редактирования -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2 style="margin-bottom: 20px; color: #333;">✏️ Редактировать задачу</h2>
+            <div id="edit-alert-container"></div>
+            <form id="editTaskForm">
+                <input type="hidden" id="edit-task-id">
+                <div class="form-group">
+                    <label for="edit-task-title">Название задачи *</label>
+                    <input type="text" id="edit-task-title" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-task-description">Описание</label>
+                    <textarea id="edit-task-description" name="description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="edit-task-status">Статус</label>
+                    <select id="edit-task-status" name="status">
+                        <option value="pending">⏳ Ожидает</option>
+                        <option value="in_progress">🔄 В работе</option>
+                        <option value="completed">✅ Выполнено</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Добавление задачи
+        document.getElementById('addTaskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = {
+                title: document.getElementById('task-title').value,
+                description: document.getElementById('task-description').value,
+                status: document.getElementById('task-status').value
+            };
+
+            try {
+                const response = await fetch('/tasks/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    showAlert('alert-container', 'Задача успешно добавлена!', 'success');
+                    document.getElementById('addTaskForm').reset();
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    const error = await response.json();
+                    showAlert('alert-container', 'Ошибка: ' + (error.error || 'Не удалось добавить задачу'), 'error');
+                }
+            } catch (error) {
+                showAlert('alert-container', 'Ошибка: ' + error.message, 'error');
+            }
+        });
+
+        // Редактирование задачи
+        function editTask(id, title, description, status) {
+            document.getElementById('edit-task-id').value = id;
+            document.getElementById('edit-task-title').value = title;
+            document.getElementById('edit-task-description').value = description || '';
+            document.getElementById('edit-task-status').value = status;
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function editTaskFromCard(button) {
+            const card = button.closest('.task-card');
+            const id = card.dataset.taskId;
+            const title = card.dataset.taskTitle;
+            const description = card.dataset.taskDescription;
+            const status = card.dataset.taskStatus;
+            editTask(id, title, description, status);
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            document.getElementById('edit-alert-container').innerHTML = '';
+        }
+
+        document.getElementById('editTaskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const taskId = document.getElementById('edit-task-id').value;
+            const formData = {
+                title: document.getElementById('edit-task-title').value,
+                description: document.getElementById('edit-task-description').value,
+                status: document.getElementById('edit-task-status').value
+            };
+
+            try {
+                const response = await fetch(`/tasks/${taskId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    showAlert('edit-alert-container', 'Задача успешно обновлена!', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    const error = await response.json();
+                    showAlert('edit-alert-container', 'Ошибка: ' + (error.error || 'Не удалось обновить задачу'), 'error');
+                }
+            } catch (error) {
+                showAlert('edit-alert-container', 'Ошибка: ' + error.message, 'error');
+            }
+        });
+
+        // Удаление задачи
+        async function deleteTask(id) {
+            if (!confirm('Вы уверены, что хотите удалить эту задачу?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/tasks/${id}/`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    const taskCard = document.querySelector(`[data-task-id="${id}"]`);
+                    if (taskCard) {
+                        taskCard.style.transition = 'opacity 0.3s';
+                        taskCard.style.opacity = '0';
+                        setTimeout(() => {
+                            location.reload();
+                        }, 300);
+                    }
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось удалить задачу'));
+                }
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+
+        // Показ уведомлений
+        function showAlert(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            container.innerHTML = '';
+            container.appendChild(alert);
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        // Закрытие модального окна при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target == modal) {
+                closeEditModal();
+            }
+        }
+    </script>
 </body>
 </html>

@@ -135,3 +135,59 @@ class TasksView(View):
         except json.JSONDecodeError:
             return JsonResponse({"error": "invalid JSON"}, status=400)
 
+
+@method_decorator(csrf_exempt, name='dispatch')
+class TaskDetailView(View):
+    def get(self, request, task_id):
+        try:
+            task = Task.objects.get(id=task_id)
+            return JsonResponse({
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "status": task.status,
+                "created_at": task.created_at.isoformat(),
+                "updated_at": task.updated_at.isoformat()
+            })
+        except Task.DoesNotExist:
+            return JsonResponse({"error": "task not found"}, status=404)
+
+    def put(self, request, task_id):
+        try:
+            task = Task.objects.get(id=task_id)
+            body = json.loads(request.body)
+            
+            if 'title' in body:
+                task.title = body['title']
+            if 'description' in body:
+                task.description = body.get('description', '')
+            if 'status' in body:
+                if body['status'] not in ['pending', 'in_progress', 'completed']:
+                    return JsonResponse({"error": "invalid status value"}, status=400)
+                task.status = body['status']
+            
+            task.save()
+            return JsonResponse({
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "status": task.status,
+                "created_at": task.created_at.isoformat(),
+                "updated_at": task.updated_at.isoformat()
+            })
+        except Task.DoesNotExist:
+            return JsonResponse({"error": "task not found"}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "invalid JSON"}, status=400)
+
+    def patch(self, request, task_id):
+        return self.put(request, task_id)
+
+    def delete(self, request, task_id):
+        try:
+            task = Task.objects.get(id=task_id)
+            task.delete()
+            return JsonResponse({"message": "task deleted successfully"}, status=200)
+        except Task.DoesNotExist:
+            return JsonResponse({"error": "task not found"}, status=404)
+
