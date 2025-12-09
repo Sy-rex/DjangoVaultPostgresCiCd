@@ -23,6 +23,12 @@ jobs:
       - name: Setup Kubernetes context
         run: |
           kubectl config use-context minikube
+      
+      - name: Enable Ingress addon
+        run: |
+          minikube addons enable ingress
+          Write-Host "Ожидаем готовности Ingress Controller..."
+          kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
 
       - name: Build Django Docker image
         run: |
