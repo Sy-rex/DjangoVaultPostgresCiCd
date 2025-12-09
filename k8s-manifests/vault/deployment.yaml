@@ -16,7 +16,7 @@ spec:
       containers:
       - name: vault
         image: vault-custom:latest
-        imagePullPolicy: Never  # Используем локальный образ в minikube
+        imagePullPolicy: Never
         ports:
         - containerPort: 8200
           name: http
@@ -29,7 +29,6 @@ spec:
           value: "0.0.0.0:8200"
         - name: HOME
           value: "/tmp"
-        # Используем dev режим напрямую, запускаем от root для dev режима
         securityContext:
           runAsUser: 0
           runAsGroup: 0

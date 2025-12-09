@@ -1,7 +1,5 @@
-# Используем базовый образ Alpine для минимального размера
 FROM alpine:3.18
 
-# Установка необходимых пакетов
 RUN apk add --no-cache unzip
 
 # Установка Vault
@@ -11,23 +9,17 @@ RUN wget https://hashicorp-releases.yandexcloud.net/vault/${VAULT_VERSION}/vault
     mv vault /usr/local/bin/ && \
     rm vault_${VAULT_VERSION}_linux_amd64.zip
 
-# Создание директорий
 RUN mkdir -p /vault/config /vault/data
 
-# Создание пользователя vault с домашней директорией
 RUN addgroup -S vault && \
     adduser -S -D -H -u 1000 -s /sbin/nologin -G vault vault -h /home/vault
 
-# Создание домашней директории и изменение владельца
 RUN mkdir -p /home/vault && \
     chown -R vault:vault /vault /home/vault
 
-# Копируем конфигурацию
 COPY vault-config.hcl /vault/config/
 
-# Переключаемся на пользователя vault
 USER vault
 
-# Запуск Vault
 EXPOSE 8200
 CMD ["vault", "server", "-config=/vault/config/vault-config.hcl"]

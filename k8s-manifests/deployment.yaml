@@ -20,8 +20,8 @@ spec:
     spec:
       containers:
       - name: django-app
-        image: django-kubernetes-app:latest
-        imagePullPolicy: Never # Используем локальный образ в minikube
+        image: django-kubernetes-app:v2
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
         envFrom:

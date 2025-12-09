@@ -8,4 +8,6 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi # 5Gi много для теста
+      storage: 1Gi
+
+      

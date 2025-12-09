@@ -21,7 +21,6 @@ spec:
         env:
         - name: POSTGRES_DB
           value: "django_prod"
-        # Берем логин/пароль из того же секрета, что и Django
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
