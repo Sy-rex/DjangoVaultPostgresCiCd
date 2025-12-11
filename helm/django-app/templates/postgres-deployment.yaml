@@ -1,0 +1,63 @@
+{{- if .Values.postgres.enabled }}
+{{- $registry := .Values.global.imageRegistry }}
+{{- $imageName := "" }}
+{{- if and $registry (ne $registry "") }}
+{{- $imageName = printf "%s/%s:%s" $registry .Values.postgres.image.repository .Values.postgres.image.tag }}
+{{- else }}
+{{- $imageName = printf "%s:%s" .Values.postgres.image.repository .Values.postgres.image.tag }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: postgres
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+spec:
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: postgres
+        image: {{ $imageName }}
+        imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: {{ .Values.postgres.config.dbName | quote }}
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: db_user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: db_password
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+{{- end }}
+

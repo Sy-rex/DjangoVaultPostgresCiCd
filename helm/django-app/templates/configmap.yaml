@@ -1,0 +1,18 @@
+{{- if .Values.django.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: django-app
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+data:
+{{- range $key, $value := .Values.django.config }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}
+

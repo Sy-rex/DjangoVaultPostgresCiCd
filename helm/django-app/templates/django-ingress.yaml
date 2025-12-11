@@ -1,0 +1,30 @@
+{{- if and .Values.django.enabled .Values.django.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-ingress
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: django-app
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+{{- range $key, $value := .Values.django.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+{{- end }}
+spec:
+  ingressClassName: {{ .Values.django.ingress.className }}
+  rules:
+  - host: {{ .Values.django.ingress.host | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-service
+            port:
+              number: {{ .Values.django.service.port }}
+{{- end }}
+

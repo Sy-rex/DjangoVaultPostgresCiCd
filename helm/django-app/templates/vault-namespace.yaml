@@ -1,0 +1,12 @@
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace.vault }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+{{- end }}
+

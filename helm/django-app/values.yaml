@@ -1,0 +1,91 @@
+# Global settings
+global:
+  # Private Docker registry configuration
+  # Для локального registry: "localhost:5000" или оставьте пустым для образов без registry
+  # Для удаленного registry: "your-registry.com:5000"
+  imageRegistry: "localhost:5000"  # Или "" для образов без registry prefix
+  imagePullSecrets: []  # Add secret names if authentication required
+  # imagePullSecrets: ["regcred"]
+
+# Namespace configuration
+namespace:
+  django: django-app
+  vault: vault
+
+# Django Application
+django:
+  enabled: true
+  image:
+    repository: django-kubernetes-app
+    tag: v2
+    pullPolicy: IfNotPresent  # Use Always for production with registry
+  replicas: 3
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 8000
+  ingress:
+    enabled: true
+    className: nginx
+    host: django.local
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  config:
+    DEBUG: "False"
+    ALLOWED_HOSTS: "*"
+    DB_HOST: "postgres-service"
+    DB_PORT: "5432"
+    DB_NAME: "django_prod"
+
+# PostgreSQL Database
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "13"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    port: 5432
+  storage:
+    size: 1Gi
+    accessMode: ReadWriteOnce
+  config:
+    dbName: django_prod
+
+# Vault
+vault:
+  enabled: true
+  image:
+    repository: vault-custom
+    tag: latest
+    pullPolicy: IfNotPresent  # Use Never for local images
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8200
+  config:
+    devRootTokenId: "root"
+    devListenAddress: "0.0.0.0:8200"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Secrets (should be managed externally or via Vault)
+secrets:
+  # These should be provided via external secret management
+  db_user: postgres
+  db_password: postgres
+  secret_key: django-insecure-test-key
+

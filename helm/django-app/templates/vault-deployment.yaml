@@ -1,0 +1,71 @@
+{{- if .Values.vault.enabled }}
+{{- $registry := .Values.global.imageRegistry }}
+{{- $imageName := "" }}
+{{- if and $registry (ne $registry "") }}
+{{- $imageName = printf "%s/%s:%s" $registry .Values.vault.image.repository .Values.vault.image.tag }}
+{{- else }}
+{{- $imageName = printf "%s:%s" .Values.vault.image.repository .Values.vault.image.tag }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  namespace: {{ .Values.namespace.vault }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: vault
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+spec:
+  replicas: {{ .Values.vault.replicas }}
+  selector:
+    matchLabels:
+      app: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: vault
+        image: {{ $imageName }}
+        imagePullPolicy: {{ .Values.vault.image.pullPolicy }}
+        ports:
+        - containerPort: 8200
+          name: http
+        - containerPort: 8201
+          name: https-internal
+        env:
+        - name: VAULT_DEV_ROOT_TOKEN_ID
+          value: {{ .Values.vault.config.devRootTokenId | quote }}
+        - name: VAULT_DEV_LISTEN_ADDRESS
+          value: {{ .Values.vault.config.devListenAddress | quote }}
+        - name: HOME
+          value: "/tmp"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+        command: ["vault", "server", "-dev", "-dev-listen-address=0.0.0.0:8200", "-dev-root-token-id={{ .Values.vault.config.devRootTokenId }}"]
+        livenessProbe:
+          httpGet:
+            path: /v1/sys/health
+            port: 8200
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /v1/sys/health
+            port: 8200
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+{{ toYaml .Values.vault.resources | indent 10 }}
+{{- end }}
+

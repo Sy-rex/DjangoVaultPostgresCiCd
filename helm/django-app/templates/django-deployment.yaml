@@ -1,0 +1,67 @@
+{{- if .Values.django.enabled }}
+{{- $registry := .Values.global.imageRegistry }}
+{{- $imageName := "" }}
+{{- if and $registry (ne $registry "") }}
+{{- $imageName = printf "%s/%s:%s" $registry .Values.django.image.repository .Values.django.image.tag }}
+{{- else }}
+{{- $imageName = printf "%s:%s" .Values.django.image.repository .Values.django.image.tag }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-deployment
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: django-app
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+spec:
+  replicas: {{ .Values.django.replicas }}
+  selector:
+    matchLabels:
+      app: django-app
+  template:
+    metadata:
+      labels:
+        app: django-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        deployment.kubernetes.io/revision: "1"
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: django-app
+        image: {{ $imageName }}
+        imagePullPolicy: {{ .Values.django.image.pullPolicy }}
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: django-config
+        - secretRef:
+            name: django-secrets
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+{{ toYaml .Values.django.resources | indent 10 }}
+{{- end }}
+

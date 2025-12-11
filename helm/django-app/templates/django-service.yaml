@@ -1,0 +1,22 @@
+{{- if .Values.django.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-service
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: django-app
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+spec:
+  selector:
+    app: django-app
+  ports:
+  - port: {{ .Values.django.service.port }}
+    targetPort: {{ .Values.django.service.targetPort }}
+    protocol: TCP
+  type: {{ .Values.django.service.type }}
+{{- end }}
+

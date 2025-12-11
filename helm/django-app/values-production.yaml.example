@@ -1,0 +1,87 @@
+# Пример конфигурации для production с приватным Docker registry
+# Использование: helm install django-app ./helm/django-app -f values-production.yaml
+
+global:
+  # Приватный Docker registry
+  imageRegistry: "your-registry.com:5000"
+  # Раскомментируйте и укажите имя secret для аутентификации
+  imagePullSecrets: ["regcred"]
+  # imagePullSecrets: []
+
+namespace:
+  django: django-app
+  vault: vault
+
+django:
+  enabled: true
+  image:
+    repository: django-kubernetes-app
+    tag: v2
+    pullPolicy: Always  # Для production используйте Always
+  replicas: 3
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 8000
+  ingress:
+    enabled: true
+    className: nginx
+    host: django.yourdomain.com  # Измените на ваш домен
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  config:
+    DEBUG: "False"
+    ALLOWED_HOSTS: "django.yourdomain.com"
+    DB_HOST: "postgres-service"
+    DB_PORT: "5432"
+    DB_NAME: "django_prod"
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "13"
+    pullPolicy: Always  # Для production используйте Always
+  replicas: 1
+  service:
+    port: 5432
+  storage:
+    size: 10Gi  # Увеличьте для production
+    accessMode: ReadWriteOnce
+  config:
+    dbName: django_prod
+
+vault:
+  enabled: true
+  image:
+    repository: vault-custom  # Кастомный образ Vault
+    tag: latest
+    pullPolicy: Always  # Для production используйте Always
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8200
+  config:
+    devRootTokenId: "root"  # Измените для production!
+    devListenAddress: "0.0.0.0:8200"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ВАЖНО: Для production используйте внешнее управление секретами (Vault, Sealed Secrets, etc.)
+secrets:
+  db_user: postgres
+  db_password: CHANGE_ME  # Обязательно измените!
+  secret_key: CHANGE_ME  # Обязательно измените!
+

@@ -1,0 +1,23 @@
+{{- if .Values.vault.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-service
+  namespace: {{ .Values.namespace.vault }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    app: vault
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name | quote }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace | quote }}
+spec:
+  type: {{ .Values.vault.service.type }}
+  ports:
+  - port: {{ .Values.vault.service.port }}
+    targetPort: 8200
+    protocol: TCP
+    name: http
+  selector:
+    app: vault
+{{- end }}
+
