@@ -1,0 +1,227 @@
+{{- if and .Values.monitoring.grafanaDashboards.enabled .Values.django.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-django-metrics
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    {{- range $k, $v := .Values.monitoring.grafanaDashboards.labels }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    app: django-app
+data:
+  django-metrics.json: |
+    {
+        "uid": "{{ .Values.monitoring.grafanaDashboards.django.uid }}",
+        "title": "{{ .Values.monitoring.grafanaDashboards.django.title }}",
+        "description": "{{ .Values.monitoring.grafanaDashboards.django.description }}",
+        "schemaVersion": 38,
+        "version": 1,
+        "editable": {{ ternary "true" "false" .Values.monitoring.grafanaDashboards.django.editable }},
+        "tags": {{ toJson .Values.monitoring.grafanaDashboards.django.tags }},
+        "refresh": "{{ .Values.monitoring.grafanaDashboards.django.refresh }}",
+        "time": { 
+          "from": "{{ .Values.monitoring.grafanaDashboards.django.timeFrom }}", 
+          "to": "now" 
+        },
+        "panels": [
+          {
+            "id": 1,
+            "type": "timeseries",
+            "title": "HTTP Requests per Second",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+            "targets": [
+              {
+                "expr": "rate(django_http_requests_total_by_transport_total[1m])",
+                "legendFormat": "{{`{{transport}}`}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "axisLabel": "",
+                  "axisPlacement": "auto",
+                  "barAlignment": 0,
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "gradientMode": "none",
+                  "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+                  "lineInterpolation": "linear",
+                  "lineWidth": 1,
+                  "pointSize": 5,
+                  "scaleDistribution": { "type": "linear" },
+                  "showPoints": "never",
+                  "spanNulls": false
+                },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "reqps"
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "timeseries",
+            "title": "HTTP Request Latency (p50, p90, p99)",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, sum(rate(django_http_requests_latency_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p50",
+                "refId": "A"
+              },
+              {
+                "expr": "histogram_quantile(0.90, sum(rate(django_http_requests_latency_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p90",
+                "refId": "B"
+              },
+              {
+                "expr": "histogram_quantile(0.99, sum(rate(django_http_requests_latency_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p99",
+                "refId": "C"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "axisLabel": "",
+                  "axisPlacement": "auto",
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 1,
+                  "pointSize": 5
+                },
+                "unit": "s"
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "timeseries",
+            "title": "HTTP Responses by Status Code",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+            "targets": [
+              {
+                "expr": "rate(django_http_responses_total_by_status_total[1m])",
+                "legendFormat": "{{`{{status}}`}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 1
+                },
+                "unit": "reqps"
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "stat",
+            "title": "Total Requests",
+            "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+            "targets": [
+              {
+                "expr": "sum(django_http_requests_total_by_transport_total)",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+                "unit": "short"
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "stat",
+            "title": "Error Rate",
+            "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+            "targets": [
+              {
+                "expr": "rate(django_http_responses_total_by_status_total{status=~\"5..\"}[1m])",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.01 },
+                    { "color": "red", "value": 0.1 }
+                  ]
+                },
+                "unit": "reqps"
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "timeseries",
+            "title": "Database Queries",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+            "targets": [
+              {
+                "expr": "rate(django_db_queries_total[1m])",
+                "legendFormat": "{{`{{type}}`}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 1
+                },
+                "unit": "ops"
+              }
+            }
+          },
+          {
+            "id": 7,
+            "type": "timeseries",
+            "title": "Cache Operations",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+            "targets": [
+              {
+                "expr": "rate(django_cache_operations_total[1m])",
+                "legendFormat": "{{`{{operation}}`}}",
+                "refId": "A"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 1
+                },
+                "unit": "ops"
+              }
+            }
+          }
+        ],
+        "templating": { "list": [] },
+        "timepicker": {},
+        "annotations": { "list": [] }
+    }
+{{- end }}
+

@@ -1,0 +1,255 @@
+{{- if and .Values.monitoring.grafanaDashboards.enabled .Values.django.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-django-logs
+  namespace: {{ .Values.namespace.django }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+    {{- range $k, $v := .Values.monitoring.grafanaDashboards.labels }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+    app: django-app
+data:
+  django-logs.json: |
+    {
+        "uid": "django-logs",
+        "title": "Django App Logs",
+        "description": "Django application logs via Loki",
+        "schemaVersion": 38,
+        "version": 1,
+        "editable": true,
+        "tags": ["django", "logs", "loki"],
+        "refresh": "30s",
+        "time": { 
+          "from": "now-30m", 
+          "to": "now" 
+        },
+        "panels": [
+          {
+            "id": 1,
+            "type": "logs",
+            "title": "Django Application Logs",
+            "gridPos": { "h": 20, "w": 24, "x": 0, "y": 0 },
+            "targets": [
+              {
+                "expr": "{namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}",
+                "refId": "A",
+                "legendFormat": "",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "options": {
+              "dedupStrategy": "none",
+              "enableLogDetails": true,
+              "prettifyLogMessage": false,
+              "showCommonLabels": false,
+              "showLabels": false,
+              "showTime": true,
+              "sortOrder": "Descending",
+              "wrapLogMessage": false
+            }
+          },
+          {
+            "id": 2,
+            "type": "stat",
+            "title": "Error Logs (Last 5m)",
+            "gridPos": { "h": 4, "w": 6, "x": 0, "y": 20 },
+            "targets": [
+              {
+                "expr": "count_over_time({namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}[5m])",
+                "refId": "A",
+                "queryType": "",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "transformations": [
+              {
+                "id": "filterByValue",
+                "options": {
+                  "filters": [
+                    {
+                      "fieldName": "Value",
+                      "config": {
+                        "id": "regex",
+                        "options": {
+                          "pattern": "(?i)ERROR",
+                          "caseSensitive": false
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 1 },
+                    { "color": "red", "value": 10 }
+                  ]
+                },
+                "unit": "short"
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "stat",
+            "title": "Warning Logs (Last 5m)",
+            "gridPos": { "h": 4, "w": 6, "x": 6, "y": 20 },
+            "targets": [
+              {
+                "expr": "count_over_time({namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}[5m])",
+                "refId": "A",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 5 },
+                    { "color": "orange", "value": 20 }
+                  ]
+                },
+                "unit": "short"
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "timeseries",
+            "title": "Log Volume Over Time",
+            "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+            "targets": [
+              {
+                "expr": "rate({namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}[1m])",
+                "legendFormat": "Logs/sec",
+                "refId": "A",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "palette-classic" },
+                "custom": {
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 1
+                },
+                "unit": "logs/s"
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "timeseries",
+            "title": "Error Rate Over Time",
+            "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+            "targets": [
+              {
+                "expr": "rate({namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}[1m])",
+                "legendFormat": "Logs/sec",
+                "refId": "A",
+                "queryType": "",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": { "mode": "thresholds" },
+                "custom": {
+                  "drawStyle": "line",
+                  "fillOpacity": 10,
+                  "lineWidth": 2
+                },
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.1 },
+                    { "color": "red", "value": 1 }
+                  ]
+                },
+                "unit": "errors/s"
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "logs",
+            "title": "Error Logs Only",
+            "gridPos": { "h": 10, "w": 24, "x": 12, "y": 24 },
+            "targets": [
+              {
+                "expr": "{namespace=\"{{ .Values.namespace.django }}\", container=\"django-app\"}",
+                "refId": "A",
+                "datasource": {
+                  "type": "loki",
+                  "uid": "${__datasource_uid}"
+                }
+              }
+            ],
+            "options": {
+              "dedupStrategy": "none",
+              "enableLogDetails": true,
+              "prettifyLogMessage": false,
+              "showCommonLabels": false,
+              "showLabels": false,
+              "showTime": true,
+              "sortOrder": "Descending",
+              "wrapLogMessage": false
+            }
+          }
+        ],
+        "templating": { 
+          "list": [
+            {
+              "name": "namespace",
+              "type": "constant",
+              "current": {
+                "selected": true,
+                "text": "{{ .Values.namespace.django }}",
+                "value": "{{ .Values.namespace.django }}"
+              },
+              "options": [
+                {
+                  "selected": true,
+                  "text": "{{ .Values.namespace.django }}",
+                  "value": "{{ .Values.namespace.django }}"
+                }
+              ],
+              "query": "{{ .Values.namespace.django }}"
+            }
+          ]
+        },
+        "timepicker": {},
+        "annotations": { "list": [] }
+    }
+{{- end }}
+

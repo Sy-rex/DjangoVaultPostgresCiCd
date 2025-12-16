@@ -16,6 +16,7 @@ spec:
   ports:
   - port: {{ .Values.django.service.port }}
     targetPort: {{ .Values.django.service.targetPort }}
+    name: http
     protocol: TCP
   type: {{ .Values.django.service.type }}
 {{- end }}

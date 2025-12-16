@@ -1,0 +1,128 @@
+kube-prometheus-stack:
+  admissionWebhooks:
+    enabled: false
+    patch:
+      enabled: false
+  
+  grafana:
+    enabled: true
+    adminUser: admin
+    adminPassword: admin
+    service:
+      type: NodePort
+      nodePort: 32001
+    ingress:
+      enabled: false
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://monitoring-loki:3100
+        access: proxy
+        editable: true
+        isDefault: false
+        jsonData:
+          maxLines: 1000
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      scrapeInterval: "30s"  # Увеличено для снижения нагрузки
+      retention: 3d  # Уменьшено для minikube
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 5Gi  # Уменьшено для minikube
+      resources:
+        requests:
+          memory: "256Mi"  # Уменьшено
+          cpu: "100m"
+        limits:
+          memory: "1Gi"  # Уменьшено
+          cpu: "500m"
+
+  alertmanager:
+    enabled: false
+  
+  # Отключить ненужные компоненты для minikube
+  kubeApiServer:
+    enabled: false
+  kubelet:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeStateMetrics:
+    enabled: true
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+  nodeExporter:
+    enabled: true
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+
+# loki-stack values (includes promtail)
+loki-stack:
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 5Gi  # Уменьшено для minikube
+      storageClassName: standard
+    resources:
+      requests:
+        memory: "128Mi"  # Уменьшено
+        cpu: "50m"
+      limits:
+        memory: "512Mi"  # Уменьшено
+        cpu: "300m"
+  promtail:
+    enabled: true
+    pipelineStages:
+      - docker: {}
+    config:
+      clients:
+        - url: http://monitoring-loki:3100/loki/api/v1/push
+    resources:
+      requests:
+        memory: "32Mi"  # Уменьшено
+        cpu: "25m"
+      limits:
+        memory: "128Mi"  # Уменьшено
+        cpu: "100m"
+  grafana:
+    enabled: false
+    datasource:
+      enabled: false  # Отключить создание datasource, т.к. он уже создается через kube-prometheus-stack
+  prometheus:
+    enabled: false
+  filebeat:
+    enabled: false
+  logstash:
+    enabled: false
+

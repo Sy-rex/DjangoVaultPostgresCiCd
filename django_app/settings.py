@@ -5,7 +5,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY') or os.getenv('secret_key', 'django-insecure-test-key')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-# Важно для Kubernetes Ingress
 ALLOWED_HOSTS = ['*'] 
 
 INSTALLED_APPS = [
@@ -15,8 +14,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_prometheus', # Из задания
-    'django_app', # Наше приложение
+    'django_prometheus',
+    'django_app',
 ]
 
 MIDDLEWARE = [
@@ -59,6 +58,13 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
+
+# Для CI можно переключиться на SQLite, установив TEST_USE_SQLITE=true
+if os.getenv('TEST_USE_SQLITE', 'false').lower() == 'true':
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')

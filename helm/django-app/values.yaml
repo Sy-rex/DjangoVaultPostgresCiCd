@@ -1,24 +1,17 @@
-# Global settings
 global:
-  # Private Docker registry configuration
-  # Для локального registry: "localhost:5000" или оставьте пустым для образов без registry
-  # Для удаленного registry: "your-registry.com:5000"
-  imageRegistry: "localhost:5000"  # Или "" для образов без registry prefix
-  imagePullSecrets: []  # Add secret names if authentication required
-  # imagePullSecrets: ["regcred"]
+  imageRegistry: "localhost:5000"
+  imagePullSecrets: []  
 
-# Namespace configuration
 namespace:
   django: django-app
   vault: vault
 
-# Django Application
 django:
   enabled: true
   image:
     repository: django-kubernetes-app
     tag: v2
-    pullPolicy: IfNotPresent  # Use Always for production with registry
+    pullPolicy: IfNotPresent
   replicas: 3
   service:
     type: NodePort
@@ -60,13 +53,12 @@ postgres:
   config:
     dbName: django_prod
 
-# Vault
 vault:
   enabled: true
   image:
     repository: vault-custom
     tag: latest
-    pullPolicy: IfNotPresent  # Use Never for local images
+    pullPolicy: IfNotPresent
   replicas: 1
   service:
     type: ClusterIP
@@ -82,10 +74,31 @@ vault:
       memory: "256Mi"
       cpu: "200m"
 
-# Secrets (should be managed externally or via Vault)
 secrets:
-  # These should be provided via external secret management
   db_user: postgres
   db_password: postgres
   secret_key: django-insecure-test-key
 
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    scrapeTimeout: 5s
+    labels: {}
+    targetPort: 8000
+    path: /prometheus/metrics
+  grafanaDashboards:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+    django:
+      uid: "django-app"
+      title: "Django App (Prometheus)"
+      description: "Django metrics via django_prometheus"
+      refresh: "30s"
+      timeFrom: "now-30m"
+      timeShift: null
+      editable: true
+      tags: ["django", "prometheus"]
+      graphPanelSpan: 12
+      datasource: "Prometheus"
